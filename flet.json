@@ -1,0 +1,7 @@
+{
+    "app": {
+        "name": "DXCC Tracker",
+        "rootModule": "app.main",
+        "assetsDir": "assets"
+    }
+}
