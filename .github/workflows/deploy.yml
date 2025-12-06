@@ -1,0 +1,55 @@
+name: Deploy to DigitalOcean App Platform
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy DXCC Tracker to DigitalOcean
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ------------------------------
+      # 1. Checkout CODE
+      # ------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------
+      # 2. Install doctl CLI
+      # ------------------------------
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.105.0/doctl-1.105.0-linux-amd64.tar.gz \
+          | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      # ------------------------------
+      # 3. Decode DigitalOcean Token
+      #    (GitHub accepts Base64 safely)
+      # ------------------------------
+      - name: Decode DO Access Token
+        id: decode
+        run: |
+          echo "${DO_TOKEN_BASE64}" | base64 --decode > do_token.txt
+        env:
+          DO_TOKEN_BASE64: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      # ------------------------------
+      # 4. Authenticate doctl
+      # ------------------------------
+      - name: Authenticate with DigitalOcean
+        run: |
+          doctl auth init -t "$(cat do_token.txt)"
+
+      # ------------------------------
+      # 5. Deploy using App Spec (.do/app.yaml)
+      # ------------------------------
+      - name: Deploy to DigitalOcean App Platform
+        run: |
+          doctl apps update "${APP_ID}" --spec .do/app.yaml
+        env:
+          APP_ID: ${{ secrets.DIGITALOCEAN_APP_ID }}
