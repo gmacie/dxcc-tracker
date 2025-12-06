@@ -1,7 +1,7 @@
 import flet as ft
 from app.dxcc_list import DXCC_COUNTRIES
 from app.ui_components import build_login_controls
-from app.data_manager import get_user_file, save_to_excel, load_from_excel
+from app.database import init_db, get_qsos_for_user, add_qso, delete_qso, update_qso
 from app.auth import authenticate, register_user
 from app.adif_import import parse_adif_file
 
@@ -11,17 +11,19 @@ def main(page: ft.Page):
     page.padding = 20
     page.scroll = "auto"
 
+    # Ensure database and tables exist
+    init_db()
+
     current_user = {"callsign": None}
 
-    # This will hold ALL rows for the current user:
-    # [country, call, date, status]
+    # In-memory model: list of [country, call, date, status]
     all_rows: list[list[str]] = []
 
-    # Filter / sort state (strings updated by dropdowns)
-    status_filter_state = {"value": "All"}      # "All", "Needed", "Requested", "Confirmed"
-    sort_state = {"value": "None"}             # "None", "Country", "Callsign", "QSO Date", "QSL Status"
+    # Filter / sort state
+    status_filter_state = {"value": "All"}  # "All", "Needed", "Requested", "Confirmed"
+    sort_state = {"value": "None"}         # "None", "Country", "Callsign", "QSO Date", "QSL Status"
 
-    # Shared DataTable instance
+    # Shared DataTable
     table = ft.DataTable(
         columns=[
             ft.DataColumn(ft.Text("Country")),
@@ -33,10 +35,10 @@ def main(page: ft.Page):
         rows=[],
     )
 
-    # Dashboard row (cards added dynamically)
+    # Dashboard row
     dashboard = ft.Row(spacing=10, wrap=True)
 
-    # For edit dialog
+    # Edit dialog
     edit_dialog = ft.AlertDialog(modal=True)
 
     # File picker for ADIF import
@@ -55,11 +57,11 @@ def main(page: ft.Page):
         page.controls.clear()
 
     # -----------------------
-    # Row helpers
+    # Row + dashboard helpers
     # -----------------------
 
     def create_row(country, call, date, status):
-        """Create a DataRow with Edit/Delete buttons (with safe bound callbacks)."""
+        """Create a DataRow with Edit/Delete buttons (safe bound callbacks)."""
         return ft.DataRow(
             cells=[
                 ft.DataCell(ft.Text(country)),
@@ -89,14 +91,6 @@ def main(page: ft.Page):
                 ),
             ]
         )
-
-    def export_rows():
-        """Return ALL data rows (for saving to Excel)."""
-        return list(all_rows)
-
-    # -----------------------
-    # Dashboard logic
-    # -----------------------
 
     def compute_stats():
         rows = all_rows
@@ -131,7 +125,6 @@ def main(page: ft.Page):
                 items.append(
                     ft.Text(subtitle, size=11, color=ft.Colors.GREY_600)
                 )
-
             return ft.Container(
                 content=ft.Column(items, spacing=2),
                 padding=10,
@@ -147,32 +140,19 @@ def main(page: ft.Page):
             card("Confirmed", stats["confirmed"]),
             card("Remaining DXCC", stats["remaining"]),
         ]
-
         page.update()
 
     # -----------------------
-    # Persistence
-    # -----------------------
-
-    def save_user_table():
-        if not current_user["callsign"]:
-            return
-        user_file = get_user_file(current_user["callsign"])
-        save_to_excel(export_rows(), user_file)
-
-    # -----------------------
-    # View (filter + sort) helper
+    # View (filter + sort)
     # -----------------------
 
     def apply_view():
         """
-        Build table.rows from all_rows, applying current
-        filter (status_filter_state) and sort (sort_state).
+        Rebuild table.rows from all_rows using current filter/sort.
         """
-        # Start from all_rows
         rows = list(all_rows)
 
-        # Filter by status
+        # Filter
         sf = status_filter_state["value"]
         if sf != "All":
             rows = [r for r in rows if r[3] == sf]
@@ -192,28 +172,28 @@ def main(page: ft.Page):
         if key:
             rows.sort(key=key)
 
-        # Rebuild visible table
         table.rows.clear()
         for c, ca, d, s in rows:
             table.rows.append(create_row(c, ca, d, s))
 
-        # Dashboard is based on ALL data, not just filtered subset
         update_dashboard()
         page.update()
 
     # -----------------------
-    # Row operations (modify all_rows, then apply_view)
+    # Row operations (update all_rows + DB)
     # -----------------------
 
     def add_entry(country, call, date, status):
         if not country:
             show_message("Select a country first.")
             return
-        all_rows.append([country, call, date, status])
-        save_user_table()
+        rec = [country, call, date, status]
+        all_rows.append(rec)
+        add_qso(current_user["callsign"], country, call, date, status)
         apply_view()
 
     def delete_entry(country, call, date, status):
+        # Update in-memory list
         removed = False
         new_all = []
         for r in all_rows:
@@ -229,12 +209,14 @@ def main(page: ft.Page):
             new_all.append(r)
         all_rows.clear()
         all_rows.extend(new_all)
-        save_user_table()
+
+        # Update DB
+        delete_qso(current_user["callsign"], country, call, date, status)
         apply_view()
 
     def edit_entry(country, call, date, status):
         """
-        Open dialog, update entry in all_rows, refresh view.
+        Open dialog, update entry in all_rows and DB, refresh view.
         """
         country_dd = ft.Dropdown(
             label="Country",
@@ -256,18 +238,23 @@ def main(page: ft.Page):
         )
 
         def save_changes(e):
-            # Remove old first
-            delete_entry(country, call, date, status)
-            # Then add updated values
-            all_rows.append(
-                [
-                    country_dd.value,
-                    call_tf.value,
-                    date_tf.value,
-                    status_dd.value,
-                ]
-            )
-            save_user_table()
+            old_row = [country, call, date, status]
+            new_row = [
+                country_dd.value,
+                call_tf.value,
+                date_tf.value,
+                status_dd.value,
+            ]
+
+            # Update in-memory list
+            for i, r in enumerate(all_rows):
+                if r == old_row:
+                    all_rows[i] = new_row
+                    break
+
+            # Update DB
+            update_qso(current_user["callsign"], old_row, new_row)
+
             page.close(edit_dialog)
             apply_view()
 
@@ -298,7 +285,7 @@ def main(page: ft.Page):
     # -----------------------
 
     def import_adif(path: str):
-        """Import QSOs from an ADIF file and add them to all_rows."""
+        """Import QSOs from an ADIF file and add them to all_rows + DB."""
         try:
             new_rows = parse_adif_file(path)
         except Exception as ex:
@@ -310,9 +297,10 @@ def main(page: ft.Page):
             return
 
         for country, call, date, status in new_rows:
-            all_rows.append([country, call, date, status])
+            rec = [country, call, date, status]
+            all_rows.append(rec)
+            add_qso(current_user["callsign"], country, call, date, status)
 
-        save_user_table()
         apply_view()
         show_message(f"Imported {len(new_rows)} QSOs from log.")
 
@@ -328,17 +316,17 @@ def main(page: ft.Page):
     adif_picker.on_result = on_adif_pick
 
     # -----------------------
-    # Load from Excel for current user
+    # Load data for current user from DB
     # -----------------------
 
-    def reload_from_excel(e=None):
+    def load_user_data():
         all_rows.clear()
-        user_file = get_user_file(current_user["callsign"])
-        for c, ca, d, s in load_from_excel(user_file):
-            all_rows.append([c, ca, d, s])
+        if not current_user["callsign"]:
+            return
+        qsos = get_qsos_for_user(current_user["callsign"])
+        for country, worked_call, qso_date, qsl_status in qsos:
+            all_rows.append([country, worked_call, qso_date, qsl_status])
         apply_view()
-        if e:
-            show_message("Reloaded from Excel")
 
     # -----------------------
     # Main app UI (after login)
@@ -385,7 +373,12 @@ def main(page: ft.Page):
         )
 
         def on_add(e):
-            add_entry(country_dd.value, call_tf.value, date_tf.value, status_dd.value)
+            add_entry(
+                country_dd.value,
+                call_tf.value,
+                date_tf.value,
+                status_dd.value,
+            )
             call_tf.value = ""
             date_tf.value = ""
             status_dd.value = "Needed"
@@ -394,7 +387,7 @@ def main(page: ft.Page):
 
         add_btn = ft.ElevatedButton("Add Entry", on_click=on_add)
 
-        # Filter + Sort controls
+        # Filter / sort controls
         status_filter_dd = ft.Dropdown(
             label="Filter QSL",
             width=150,
@@ -431,24 +424,11 @@ def main(page: ft.Page):
         status_filter_dd.on_change = on_filter_change
         sort_dd.on_change = on_sort_change
 
-        def save_click(e):
-            save_user_table()
-            show_message("Saved to Excel")
-
-        # Initial load from Excel
-        reload_from_excel(e=None)
-
-        # Layout
+        # Layout (no Excel buttons anymore)
         page.add(
             ft.Container(
                 ft.Row(
-                    [
-                        country_dd,
-                        call_tf,
-                        date_tf,
-                        status_dd,
-                        add_btn,
-                    ],
+                    [country_dd, call_tf, date_tf, status_dd, add_btn],
                     spacing=10,
                     wrap=True,
                 ),
@@ -458,10 +438,6 @@ def main(page: ft.Page):
                 [
                     status_filter_dd,
                     sort_dd,
-                    ft.ElevatedButton("Save to Excel", on_click=save_click),
-                    ft.ElevatedButton(
-                        "Reload from Excel", on_click=reload_from_excel
-                    ),
                     ft.ElevatedButton(
                         "Import ADIF",
                         on_click=lambda e: adif_picker.pick_files(
@@ -477,6 +453,9 @@ def main(page: ft.Page):
             ft.Divider(),
             table,
         )
+
+        # Load user's data from DB
+        load_user_data()
 
         page.update()
 
