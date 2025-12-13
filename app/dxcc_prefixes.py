@@ -1,4 +1,15 @@
 # app/dxcc_prefixes.py
+"""
+⚠️ STABLE DXCC ENGINE ⚠️
+
+- Longest-prefix-wins is correct
+- Prefix list verified
+- KH2 / Guam verified
+- Do NOT change matching order
+- Do NOT modify without tests
+
+Last verified: 2025-12-13
+"""
 
 """
 DXCC prefix resolution engine backed by SQLite reference tables.
@@ -131,7 +142,7 @@ def entity_for_callsign(call: str) -> Tuple[Optional[str], str, bool]:
 
     return entity_id, ent["name"], ent["active"]
 
-def prefix_for_callsign(call: str) -> Optional[str]:
+def prefix_for_callsign(call: str) -> str | None:
     """
     Return the longest matching DXCC prefix for a callsign.
     """
