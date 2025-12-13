@@ -1,0 +1,33 @@
+name: Deploy to DigitalOcean Staging
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.105.0/doctl-1.105.0-linux-amd64.tar.gz \
+          | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      - name: Decode DigitalOcean Access Token
+        run: echo "${DO_TOKEN_BASE64}" | base64 --decode > do_token.txt
+        env:
+          DO_TOKEN_BASE64: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Authenticate with DigitalOcean
+        run: doctl auth init -t "$(cat do_token.txt)"
+
+      - name: Deploy Staging App
+        run: doctl apps update "${APP_ID}" --spec .do/app-staging.yaml
+        env:
+          APP_ID: ${{ secrets.DIGITALOCEAN_APP_ID_STAGING }}

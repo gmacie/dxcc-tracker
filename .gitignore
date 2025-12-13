@@ -6,5 +6,6 @@ __pycache__/
 *.xlsx
 *.zip
 *.log
+*.adi
 .vscode/
 .idea/

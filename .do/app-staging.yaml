@@ -1,0 +1,36 @@
+name: dxcc-tracker-staging
+region: nyc
+
+services:
+  - name: dxcc-web-staging
+    dockerfile_path: ./Dockerfile
+    source_dir: /
+    http_port: 8550
+    instance_size_slug: basic-xxs
+    instance_count: 1
+
+    # Mount a separate staging volume at /data
+    mounts:
+      - volume_name: dxcc-data-staging
+        mount_path: /data
+
+    envs:
+      - key: FLET_SERVER_PORT
+        value: "8550"
+      - key: FLET_SERVER_HOST
+        value: "0.0.0.0"
+
+    routes:
+      - path: "/"
+
+    health_check:
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+      http_path: "/"
+
+volumes:
+  - name: dxcc-data-staging
+    size_gigabytes: 1

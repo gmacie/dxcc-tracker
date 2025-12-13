@@ -1,0 +1,38 @@
+name: dxcc-tracker
+region: nyc
+
+services:
+  - name: dxcc-web
+    dockerfile_path: ./Dockerfile
+    source_dir: /
+    http_port: 8550
+    instance_size_slug: basic-xxs
+    instance_count: 1
+
+    # Persistent volume mount
+    mounts:
+      - volume_name: dxcc-data
+        mount_path: /data
+
+    envs:
+      - key: FLET_SERVER_PORT
+        value: "8550"
+      - key: FLET_SERVER_HOST
+        value: "0.0.0.0"
+
+    routes:
+      - path: "/"
+
+    # Health check
+    health_check:
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+      http_path: "/"
+
+# Persistent volume definition
+volumes:
+  - name: dxcc-data
+    size_gigabytes: 1

@@ -1,0 +1,47 @@
+name: Deploy to DigitalOcean Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install doctl
+        run: |
+          curl -sL https://github.com/digitalocean/doctl/releases/download/v1.105.0/doctl-1.105.0-linux-amd64.tar.gz \
+          | tar -xzv
+          sudo mv doctl /usr/local/bin
+
+      - name: Decode DO Token
+        run: echo "${DO_TOKEN_BASE64}" | base64 --decode > do_token.txt
+        env:
+          DO_TOKEN_BASE64: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Auth DO
+        run: doctl auth init -t "$(cat do_token.txt)"
+
+      - name: Deploy Production (Blue/Green)
+        run: |
+          doctl apps update "${APP_ID}" --spec .do/app.yaml
+          echo "Waiting for deployment to complete..."
+          doctl apps wait "${APP_ID}"
+
+        env:
+          APP_ID: ${{ secrets.DIGITALOCEAN_APP_ID_PROD }}
+
+      - name: Check Health Status
+        run: |
+          HEALTH=$(doctl apps get-deployments "${APP_ID}" --format ActiveDeploymentStatus | tail -n 1)
+          echo "Health: ${HEALTH}"
+          if [ "$HEALTH" != "RUNNING" ]; then
+            echo "Deployment failed. Rolling back..."
+            doctl apps rollback "${APP_ID}"
+            exit 1
+          fi
