@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 # app/dxcc_prefixes.py
+
 """
 ⚠️ STABLE DXCC ENGINE ⚠️
 
@@ -9,9 +12,7 @@
 - Do NOT modify without tests
 
 Last verified: 2025-12-13
-"""
 
-"""
 DXCC prefix resolution engine backed by SQLite reference tables.
 
 - DXCC entities and prefixes live in SQLite
@@ -19,9 +20,9 @@ DXCC prefix resolution engine backed by SQLite reference tables.
 - Longest-prefix-wins resolution
 - Supports active vs deleted entities
 - Admin-triggered cache reload supported
+
 """
 
-from __future__ import annotations
 import sqlite3
 from typing import Dict, List, Tuple, Optional
 

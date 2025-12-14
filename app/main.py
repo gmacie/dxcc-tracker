@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 APP_VERSION = "0.9.0-stable"
 BUILD_DATE = "2025-12-13"
-
-from __future__ import annotations
 
 from datetime import datetime, UTC, timedelta
 from collections import defaultdict
@@ -54,7 +54,14 @@ def main(page: ft.Page):
     # =========================================================
     # LOGIN VIEW
     # =========================================================
-    callsign = ft.TextField(label="Callsign", width=240)
+    #callsign = ft.TextField(label="Callsign", width=240)
+    callsign = ft.TextField(
+        label="Callsign",
+        width=240,
+        autofocus=True,   # ✅ ADD THIS
+)
+
+    
     password = ft.TextField(label="Password", password=True, width=240)
     status = ft.Text(color=ft.Colors.RED)
 
@@ -356,7 +363,24 @@ def main(page: ft.Page):
             ]
         )
 
-        page.add(ft.Column(controls, spacing=20))
+        footer = ft.Container(
+            content=ft.Text(
+                f"DXCC Need List Tracker  •  v{APP_VERSION}  •  Build {BUILD_DATE}",
+                size=12,
+                color=ft.Colors.GREY_500,
+            ),
+            alignment=ft.alignment.center,
+            padding=ft.padding.only(top=10),
+        )
+
+        page.add(
+            ft.Column(
+                controls + [footer],
+                spacing=20,
+            )
+        )
+
+        #page.add(ft.Column(controls, spacing=20))
         refresh()
 
     page.update()
