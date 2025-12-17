@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload ADIF</title>
+</head>
+<body>
+<h2>Upload ADIF</h2>
+
+<input type="file" id="file"><br><br>
+<button onclick="upload()">Upload</button>
+
+<p id="status"></p>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const user = params.get("user");
+
+async function upload() {
+    const f = document.getElementById("file").files[0];
+    if (!f) {
+        document.getElementById("status").innerText = "No file selected";
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append("file", f);
+    fd.append("user", user);
+
+    document.getElementById("status").innerText = "Uploading...";
+
+    const res = await fetch("/upload-adif", {
+        method: "POST",
+        body: fd,
+    });
+
+    const data = await res.json();
+    document.getElementById("status").innerText =
+        "Import complete";
+}
+</script>
+</body>
+</html>

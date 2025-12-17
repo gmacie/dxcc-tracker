@@ -1,2 +1,6 @@
+fastapi
 flet
 openpyxl
+python-multipart
+requests
+uvicorn

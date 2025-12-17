@@ -121,7 +121,71 @@ def main(page: ft.Page):
             
         track_all, bands, include_deleted = get_user_profile(user)
 
-                   
+        # -----------------------------
+        # Admin Panel
+        # -----------------------------
+        def admin_panel():
+            active, total, prefixes = get_dxcc_stats()
+
+            stats_txt = ft.Text(
+                f"DXCC Entities\n"
+                f"Active: {active}\n"
+                f"Total: {total}\n"
+                f"Prefixes: {prefixes}",
+                selectable=True,
+            )
+
+            def reload_dxcc(e):
+                dxcc_prefixes.reload_dxcc_cache()
+                a, t, p = get_dxcc_stats()
+                stats_txt.value = (
+                    f"DXCC Entities\n"
+                    f"Active: {a}\n"
+                    f"Total: {t}\n"
+                    f"Prefixes: {p}"
+                )
+                page.snack_bar = ft.SnackBar(
+                    ft.Text("DXCC cache reloaded"),
+                    open=True,
+                )
+                page.update()
+
+            def refresh_lotw(e):
+                refresh_lotw_cache(force=True)
+                page.snack_bar = ft.SnackBar(
+                    ft.Text("LoTW cache refreshed"),
+                    open=True,
+                )
+                page.update()
+
+            return ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Text("Admin Tools", size=18, weight="bold"),
+                        stats_txt,
+                        ft.Row(
+                            [
+                                ft.ElevatedButton(
+                                    "Reload DXCC Cache",
+                                    icon=ft.Icons.REFRESH,
+                                    on_click=reload_dxcc,
+                                ),
+                                ft.ElevatedButton(
+                                    "Refresh LoTW Cache",
+                                    icon=ft.Icons.CLOUD_SYNC,
+                                    on_click=refresh_lotw,
+                                ),
+                            ],
+                            wrap=True,
+                        ),
+                    ],
+                    spacing=10,
+                ),
+                padding=14,
+                bgcolor=ft.Colors.BLUE_GREY_900,
+                border_radius=10,
+            )
+
         def stat_box(label, value_control, color):
             return ft.Container(
                 content=ft.Column(
@@ -185,6 +249,7 @@ def main(page: ft.Page):
         page.add(
             ft.Column(
                 [
+                    # Header row
                     ft.Row(
                         [
                             ft.Text(f"Logged in as {user}", size=18),
@@ -192,9 +257,13 @@ def main(page: ft.Page):
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
+                    
+                    # Admin tools (conditional)
+                    admin_panel() if is_admin_user else ft.Container(),
                     ft.Divider(),
                     dashboard,
-                ]
+                ],
+                spacing=16,
             )
         )
 
