@@ -9,4 +9,5 @@ __pycache__/
 *.adi
 .vscode/
 .idea/
+test_data/*
 app/dxcc.db.locked 

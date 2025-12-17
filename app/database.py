@@ -148,6 +148,15 @@ def qso_exists(user, call_worked, date, band):
 # Dashboard logic
 # ------------------------------------------------------------
 
+# ============================================================
+# DASHBOARD (STABLE)
+# Relies on:
+#   - get_user_profile()
+#   - get_dxcc_dashboard()
+#   - dxcc_prefixes.entity_for_callsign()
+# DO NOT MODIFY without checking counts carefully
+# ============================================================
+
 def get_dxcc_dashboard(user, bands, include_deleted):
     con = sqlite3.connect(DB_PATH)
     cur = con.cursor()
@@ -187,6 +196,53 @@ def get_dxcc_dashboard(user, bands, include_deleted):
     )
 
     return worked, confirmed, total_active
+
+def get_dxcc_counts(user: str):
+    """
+    Returns (worked, confirmed, remaining) DXCC counts for a user
+    """
+
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    # Worked DXCC (any QSO)
+    cur.execute(
+        """
+        SELECT COUNT(DISTINCT dxcc)
+        FROM qsos
+        WHERE user = ?
+        """,
+        (user,),
+    )
+    worked = cur.fetchone()[0] or 0
+
+    # Confirmed DXCC (LoTW or QSL confirmed)
+    cur.execute(
+        """
+        SELECT COUNT(DISTINCT dxcc)
+        FROM qsos
+        WHERE user = ?
+          AND qsl_status = 'Confirmed'
+        """,
+        (user,),
+    )
+    confirmed = cur.fetchone()[0] or 0
+
+    # Total active DXCC entities
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM dxcc_entities
+        WHERE active = 1
+        """
+    )
+    total = cur.fetchone()[0] or 0
+
+    conn.close()
+
+    remaining = max(0, total - worked)
+
+    return worked, confirmed, remaining
 
 
 # ------------------------------------------------------------
