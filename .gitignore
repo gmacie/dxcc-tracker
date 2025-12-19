@@ -1,13 +1,89 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables
 .env
-*.xlsx
-*.zip
-*.log
-*.adi
+.env.local
+
+# Database files
+*.db.locked
+*.db-journal
+*.sqlite3-journal
+
+# IDE / Editor
 .vscode/
 .idea/
-test_data/*
-app/dxcc.db.locked 
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test data
+test_data/*.adi
+test_data/*.adif
+
+# User data
+userdata/uploads/*
+userdata/**/*.adi
+userdata/**/*.adif
+
+# Application storage
+app/storage/temp/*
+app/storage/data/*
+app/storage/uploads/*
+
+# Keep directory structure but ignore contents
+!test_data/.gitkeep
+!userdata/uploads/.gitkeep
+!app/storage/temp/.gitkeep
+!app/storage/data/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.xlsx
+*.zip
+~*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Flet build artifacts
+build/
+dist/
+
+# Backup files
+*.backup
+*.old
+*~
+*.py.20*
+
+# Docker
+.dockerignore

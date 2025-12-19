@@ -28,7 +28,6 @@ from typing import Dict, List, Tuple, Optional
 
 from app.config import DB_PATH
 
-
 # ------------------------------------------------------------
 # In-memory cache
 # ------------------------------------------------------------

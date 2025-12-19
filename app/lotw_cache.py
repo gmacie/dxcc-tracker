@@ -1,6 +1,5 @@
-# app/lotw_cache.py
-
 from __future__ import annotations
+
 import sqlite3
 import requests
 from datetime import datetime, UTC, timedelta

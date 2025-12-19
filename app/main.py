@@ -16,6 +16,7 @@ import flet as ft
 
 import os
 import tempfile
+import sqlite3
 
 IS_WEB = os.environ.get("FLET_PLATFORM") == "web"
 
@@ -39,6 +40,8 @@ from app.adif_import import import_adif
 from app.lotw_cache import refresh_lotw_cache, get_lotw_last_upload
 
 from app import dxcc_prefixes
+
+from app.config import DB_PATH
 
 
 # ------------------------------------------------------------
@@ -120,7 +123,51 @@ def main(page: ft.Page):
             return
             
         track_all, bands, include_deleted = get_user_profile(user)
-
+        
+        qso_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Prefix")),
+                ft.DataColumn(ft.Text("Country")),
+                ft.DataColumn(ft.Text("Call")),
+                ft.DataColumn(ft.Text("Date")),
+                ft.DataColumn(ft.Text("QSL")),
+                ft.DataColumn(ft.Text("LoTW")),
+                ft.DataColumn(ft.Text("Band")),
+            ],
+            rows=[],
+        )
+        
+        need_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Prefix")),
+                ft.DataColumn(ft.Text("Country")),
+                ft.DataColumn(ft.Text("Band")),
+            ],
+            rows=[],
+        )
+               
+        qso_tabs = ft.Tabs(
+            tabs=[
+                ft.Tab(
+                    "QSOs",
+                    ft.Column(
+                        [qso_table],
+                        scroll=ft.ScrollMode.AUTO,
+                        expand=True,
+                    ),
+                ),
+               ft.Tab(
+                    "DXCC Need List",
+                    ft.Column(
+                        [need_table],
+                        scroll=ft.ScrollMode.AUTO,
+                        expand=True,
+                    ),
+                ),
+            ],
+            expand=True,
+        )
+        
         # -----------------------------
         # Admin Panel
         # -----------------------------
@@ -215,6 +262,66 @@ def main(page: ft.Page):
             spacing=20,
         )
         
+        def on_done(result=None):
+            import_progress.visible = False
+            cancel_btn.visible = False
+
+            if result:
+                import_status.value = (
+                    f"ADIF import complete: "
+                    f"{result['added']} added, "
+                    f"{result['skipped']} skipped"
+                )
+            else:
+                import_status.value = "ADIF import complete"
+
+            refresh_qso_table()
+            refresh_dashboard()
+            page.update()
+
+        def refresh_qso_table():
+            con = sqlite3.connect(DB_PATH)
+            cur = con.cursor()
+
+            # Query the qsos table
+            cur.execute(
+                """
+                SELECT call_worked, qso_date, qsl_status, band
+                FROM qsos
+                WHERE callsign=?
+                ORDER BY qso_date DESC
+                """,
+                (user,),
+            )
+
+            rows = cur.fetchall()
+
+            qso_table.rows.clear()
+
+            for call, qso_date, qsl_status, band in rows:
+                eid, country, active = dxcc_prefixes.entity_for_callsign(call)
+                prefix = dxcc_prefixes.prefix_for_callsign(call) or ""
+                
+                # Look up LoTW last upload date for this callsign
+                lotw_date = get_lotw_last_upload(call)
+
+                qso_table.rows.append(
+                    ft.DataRow(
+                        cells=[
+                            ft.DataCell(ft.Text(prefix)),
+                            ft.DataCell(ft.Text(country or "—")),
+                            ft.DataCell(ft.Text(call)),
+                            ft.DataCell(ft.Text(qso_date)),
+                            ft.DataCell(ft.Text(qsl_status or "—")),
+                            ft.DataCell(ft.Text(lotw_date or "—")),
+                            ft.DataCell(ft.Text(band or "—")),
+                        ]
+                    )
+                )
+            
+            con.close()
+            page.update()
+        
         # ============================================================
         # DASHBOARD (STABLE)
         # Relies on:
@@ -246,6 +353,55 @@ def main(page: ft.Page):
             on_click=do_logout,
         )
 
+        # -----------------------------
+        # Web ADIF upload launcher
+        # -----------------------------
+        def upload_adif_web(e):
+            page.launch_url(
+                f"http://localhost:8551/static/upload.html?user={user}"
+            )
+
+        # -----------------------------
+        # Import buttons
+        # -----------------------------
+        import_btn = ft.ElevatedButton(
+            "Import ADIF",
+            icon=ft.Icons.UPLOAD_FILE,
+            on_click=lambda e: picker.pick_files(
+                allow_multiple=False,
+                allowed_extensions=["adi", "adif"],
+            ),
+        )
+
+        import_web_btn = ft.ElevatedButton(
+            "Import ADIF (Web)",
+            icon=ft.Icons.CLOUD_UPLOAD,
+            on_click=upload_adif_web,
+        )
+
+        # -----------------------------
+        # Footer
+        # -----------------------------
+        footer = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Text(
+                        f"DXCC Need List Tracker • v{APP_VERSION} • Build {BUILD_DATE}",
+                        size=12,
+                        color=ft.Colors.GREY_500,
+                    ),
+                    ft.Text(
+                        "© N4LR",
+                        size=12,
+                        color=ft.Colors.GREY_500,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            ),
+            padding=10,
+)
+
+        
         page.add(
             ft.Column(
                 [
@@ -260,14 +416,28 @@ def main(page: ft.Page):
                     
                     # Admin tools (conditional)
                     admin_panel() if is_admin_user else ft.Container(),
+                    
                     ft.Divider(),
                     dashboard,
+                    
+                    ft.Divider(),
+                    import_btn,
+                    import_web_btn,
+
+                    ft.Divider(),
+                    qso_tabs,
+
+                    # 👇 FOOTER GOES HERE
+                    ft.Divider(),
+                    footer,
+                    
                 ],
                 spacing=16,
             )
         )
 
         refresh_dashboard()
+        refresh_qso_table()
         page.update()
     
     # -------------------------

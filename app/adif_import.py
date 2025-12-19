@@ -122,17 +122,30 @@ def parse_adif_file(path: str) -> List[Tuple[str, str, str, str, str]]:
 # Import into database
 # -------------------------------------------------------------------
 
-def import_adif(path: str, user: str):
+def import_adif(
+    path: str,
+    user: str,
+    on_progress=None,     # callback(percent, message)
+    on_done=None,         # callback()
+    cancel_flag=None,
+):
+ 
     """
     Import ADIF QSOs for a user.
     Skips duplicates automatically.
     """
+    
     records = parse_adif_file(path)
 
     inserted = 0
     skipped = 0
+    total = len(records)
 
-    for country, call, date, status, band in records:
+    for i, (country, call, date, status, band) in enumerate(records, start=1):
+        
+        if cancel_flag and cancel_flag.get("value"):
+            break
+            
         if not date:
             continue
 
@@ -150,8 +163,22 @@ def import_adif(path: str, user: str):
             band=band,
         )
         inserted += 1
+        
+        # 🔹 Progress callback
+        if on_progress:
+            percent = int((i / total) * 100)
+            on_progress(percent, f"Imported {i}/{total}")
+            
+    result = {
+        "added": inserted,
+        "skipped": skipped,
+        "total": total,
+    }
 
-    print(
-        f"ADIF import complete for {user}: "
-        f"{inserted} added, {skipped} skipped"
-    )
+    # 🔹 Done callback
+    if on_done:
+        on_done(result)
+
+    print(f"ADIF import complete for {user}: {inserted} added, {skipped} skipped")
+
+    return result
